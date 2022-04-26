@@ -1,104 +1,122 @@
-resource "aws_vpc" "vpc-automation" {
-  cidr_block = "10.0.0.0/16"
-tags = {
-    Name = "vpc-automation"
+resource "aws_eip" "eip0" {
+  network_border_group = "us-east-1"
+  tags                 = {}
+  tags_all             = {}
+  vpc                  = true
+
+  timeouts {}
+}
+
+# aws_security_group.sg0:
+resource "aws_security_group" "sg0" {
+  description = "Grupo de seguranca para o exercicio um"
+  egress      = [
+    {
+      cidr_blocks      = [
+        "0.0.0.0/0",
+      ]
+      description      = ""
+      from_port        = 0
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      protocol         = "-1"
+      security_groups  = []
+      self             = false
+      to_port          = 0
+    },
+  ]
+  ingress     = [
+    {
+      cidr_blocks      = [
+        "0.0.0.0/0",
+      ]
+      description      = "Permitir todo o iCMP"
+      from_port        = -1
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      protocol         = "icmp"
+      security_groups  = []
+      self             = false
+      to_port          = -1
+    },
+    {
+      cidr_blocks      = [
+        "78.29.147.32/32",
+      ]
+      description      = "Permitir todo o DNS vindo do meu IP"
+      from_port        = 53
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      protocol         = "udp"
+      security_groups  = []
+      self             = false
+      to_port          = 53
+    },
+    {
+      cidr_blocks      = [
+        "78.29.147.32/32",
+      ]
+      description      = "Permitir todo o HTTPS vindo do meu IP"
+      from_port        = 443
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      protocol         = "tcp"
+      security_groups  = []
+      self             = false
+      to_port          = 443
+    },
+    {
+      cidr_blocks      = []
+      description      = "Permitir todo o HTTP vindo de IPv6"
+      from_port        = 80
+      ipv6_cidr_blocks = [
+        "::/0",
+      ]
+      prefix_list_ids  = []
+      protocol         = "tcp"
+      security_groups  = []
+      self             = false
+      to_port          = 80
+    },
+  ]
+  name        = "grsi-security-group"
+  tags        = {}
+  tags_all    = {}
+  vpc_id      = "vpc-055e9db3c61f9ab61"
+
+  timeouts {}
+}
+
+# aws_instance.instance0:
+resource "aws_instance" "instance0" {
+  ami                                  = "ami-0f9fc25dd2506cf6d"
+  availability_zone                    = "us-east-1d"
+  instance_type                        = "t2.micro"
+  key_name                             = "GRSI-APRIL-22"
+  security_groups                      = [
+    aws_security_group.sg0.name,
+  ]
+  vpc_security_group_ids               = [
+    aws_security_group.sg0.id,
+  ]
+
+  ebs_block_device {
+    delete_on_termination = true
+    device_name           = "/dev/sdb"
+    volume_size           = 12
+    volume_type           = "gp3"
   }
-}
 
-resource "aws_subnet" "subnet-automation-1" {
-  vpc_id = "${aws_vpc.vpc-automation.id}"
-  availability_zone = "us-east-1a"
-  cidr_block = "10.0.1.0/24"
-tags = {
-    Name = "subnet-automation-1"
-   }
-}
-
-resource "aws_subnet" "subnet-automation-2" {
-  vpc_id = "${aws_vpc.vpc-automation.id}"
-  availability_zone = "us-east-1b"
-  cidr_block = "10.0.2.0/24"
-tags = {
-    Name = "subnet-automation-2"
-   }
-}
-
-resource "aws_security_group" "automation-sg-loadbalancer" {
-  name        = "automation-sg-loadbalancer"
-  description = "HTTP IP PUB MEU E JURADOS"
-  vpc_id      = "${aws_vpc.vpc-automation.id}"
-
-  ingress {
-    from_port        = 80
-    to_port          = 80
-    protocol         = "tcp"
-    cidr_blocks      = ["85.243.7.219/32", "0.0.0.0/0"]
+  root_block_device {
+    delete_on_termination = true
+    volume_size           = 10
+    volume_type           = "gp2"
   }
 
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-
-  tags = {
-    Name = "automation-sg-loadbalancer"
-  }
 }
 
-resource "aws_security_group" "automation-sg-instances" {
-  name        = "automation-sg-instances"
-  vpc_id      = "${aws_vpc.vpc-automation.id}"
-
-  ingress {
-    from_port        = 80
-    to_port          = 80
-    protocol         = "tcp"
-    cidr_blocks      = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-
-  tags = {
-    Name = "automation-sg-instances"
-  }
-}
-
-resource "aws_elb" "aws-elb" {
-  name               = "aws-elb"
-  availability_zones = ["us-east-1a", "us-east-1b"]
-}
-
-resource "aws_autoscaling_group" "bar" {
-  name                      = "bar"
-  max_size                  = 3
-  min_size                  = 2
-  health_check_grace_period = 30
-  health_check_type         = "ELB"
-  force_delete              = true
-  launch_configuration      = aws_launch_configuration.foo.name
-  vpc_zone_identifier       = [aws_subnet.subnet-automation-1, aws_subnet.subnet-automation-2]
-
-}
-
-resource "aws_launch_configuration" "foo" {
-  name = "web_config"
-  image_id = 
-  instance_type = "t2.micro"
-}
-
-resource "aws_autoscaling_policy" "bat" {
-  name                   = "foobar3-terraform-test"
-  scaling_adjustment     = 4
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 60
-  autoscaling_group_name = aws_autoscaling_group.bar.name
+# aws_eip_association.eip0_assoc:
+resource "aws_eip_association" "eip0_assoc" {
+  allocation_id        = aws_eip.eip0.id
+instance_id          = aws_instance.instance0.id
 }
